@@ -1,6 +1,8 @@
-data/raw/
-data/cleaned/
-data/labeled/
+data/raw/*.jsonl
+data/raw/*.json
+data/raw/*.md
+data/cleaned/*.jsonl
+data/labeled/*.jsonl
 *.pyc
 __pycache__/
 .env
@@ -8,3 +10,4 @@ __pycache__/
 venv/
 *.egg-info/
 .DS_Store
+.pytest_cache/
