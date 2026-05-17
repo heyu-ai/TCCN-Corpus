@@ -1,0 +1,137 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TCCN-Corpus Entry Schema",
+  "description": "Taiwan Age-Appropriate Children's Story & Nursery Rhymes Corpus",
+  "type": "object",
+  "required": ["id", "source", "content_type", "language", "title", "body", "age_range", "collected_at"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "唯一識別碼，格式：{source_code}-{sequence}，例：MOC-000001"
+    },
+    "source": {
+      "type": "string",
+      "enum": ["MOC_CHILDREN", "YUANMENG", "EDU_CLOUD", "METADATA_ONLY"],
+      "description": "資料來源代碼"
+    },
+    "source_url": {
+      "type": "string",
+      "format": "uri",
+      "description": "原始頁面 URL"
+    },
+    "content_type": {
+      "type": "string",
+      "enum": ["story", "nursery_rhyme", "picture_book", "animation_script"],
+      "description": "內容類型"
+    },
+    "language": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["zh-TW", "nan-TW", "hak-TW", "indigenous"]
+      },
+      "minItems": 1,
+      "description": "語言標籤（國語、台語、客語、原住民語）"
+    },
+    "title": {
+      "type": "string",
+      "description": "作品標題"
+    },
+    "body": {
+      "type": "string",
+      "description": "主文本（清洗後）"
+    },
+    "body_zhuyin": {
+      "type": "string",
+      "description": "含注音標記之文本（選填）"
+    },
+    "age_range": {
+      "type": "object",
+      "required": ["min", "max"],
+      "properties": {
+        "min": { "type": "integer", "minimum": 0, "maximum": 12 },
+        "max": { "type": "integer", "minimum": 0, "maximum": 12 }
+      },
+      "description": "適讀年齡區間（歲）"
+    },
+    "developmental_milestone": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "language_0_1", "language_1_2", "language_2_3",
+          "language_3_4", "language_4_5", "language_5_6",
+          "gross_motor", "fine_motor", "social_emotional",
+          "cognitive", "sensory"
+        ]
+      },
+      "description": "對應語言發展里程碑標籤"
+    },
+    "phonics": {
+      "type": "object",
+      "properties": {
+        "rhyme_scheme": {
+          "type": "string",
+          "description": "押韻格式，例：AABB、ABAB"
+        },
+        "rhythm_pattern": {
+          "type": "string",
+          "description": "節拍型式，例：2/4、4/4（兒歌用）"
+        },
+        "repetition_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "重複句型比例（0~1）"
+        }
+      },
+      "description": "聲韻結構分析（選填）"
+    },
+    "themes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "主題標籤，例：克服恐懼、友誼、自然、動物、身體認知"
+    },
+    "action_cues": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "動作指示標籤，例：拍手、跺腳、轉圈（兒歌互動動作）"
+    },
+    "word_count": {
+      "type": "integer",
+      "description": "主文本字數"
+    },
+    "has_audio": {
+      "type": "boolean",
+      "description": "是否有對應音檔"
+    },
+    "audio_url": {
+      "type": "string",
+      "format": "uri",
+      "description": "音檔 URL（選填）"
+    },
+    "audio_transcript": {
+      "type": "string",
+      "description": "Whisper 語音轉文字結果（實驗性，選填）"
+    },
+    "license": {
+      "type": "string",
+      "description": "授權資訊，例：CC BY 4.0、政府資料開放授權條款"
+    },
+    "collected_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "爬取時間（ISO 8601）"
+    },
+    "cleaned_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "清洗完成時間（選填）"
+    },
+    "labeled_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "標籤化完成時間（選填）"
+    }
+  }
+}
