@@ -16,9 +16,10 @@ from urllib.parse import urljoin
 
 from playwright.async_api import async_playwright
 
+from crawlers.config import USER_AGENT
+
 BASE_URL = "https://storybook.nlpi.edu.tw/"
 OUTPUT_PATH = Path("data/raw/yuanmeng_dry_run.json")
-USER_AGENT = "TCCN-Corpus-Bot/1.0 (+https://github.com/howie/TCCN-Corpus)"
 
 
 async def run(output: Path) -> None:

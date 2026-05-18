@@ -3,33 +3,34 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Iterator
 
 import scrapy
 
+from crawlers.config import CONCURRENT_REQUESTS_PER_DOMAIN, DOWNLOAD_DELAY, USER_AGENT
 
-def load_seed_entries(seed_path: Path) -> list[dict]:
+
+def iter_seed_entries(seed_path: Path) -> Iterator[dict]:
     if not seed_path.exists():
         raise FileNotFoundError(
             f"找不到 seed 檔案：{seed_path}。請先執行 ogd_fetcher.py 產生 data/raw/moc_ogd.jsonl。"
         )
 
-    entries: list[dict] = []
     with seed_path.open(encoding="utf-8") as handle:
         for line in handle:
             line = line.strip()
             if not line:
                 continue
-            entries.append(json.loads(line))
-    return entries
+            yield json.loads(line)
 
 
 class AnimateSpider(scrapy.Spider):
     name = "animate_spider"
     allowed_domains = ["children.moc.gov.tw"]
     custom_settings = {
-        "USER_AGENT": "TCCN-Corpus-Bot/1.0 (+https://github.com/howie/TCCN-Corpus)",
-        "DOWNLOAD_DELAY": 2.0,
-        "CONCURRENT_REQUESTS_PER_DOMAIN": 2,
+        "USER_AGENT": USER_AGENT,
+        "DOWNLOAD_DELAY": DOWNLOAD_DELAY,
+        "CONCURRENT_REQUESTS_PER_DOMAIN": CONCURRENT_REQUESTS_PER_DOMAIN,
     }
 
     def __init__(self, seed_file: str = "data/raw/moc_ogd.jsonl", *args, **kwargs):
@@ -37,7 +38,7 @@ class AnimateSpider(scrapy.Spider):
         self.seed_file = Path(seed_file)
 
     def start_requests(self):
-        for seed in load_seed_entries(self.seed_file):
+        for seed in iter_seed_entries(self.seed_file):
             source_url = seed.get("source_url") or "https://children.moc.gov.tw/animate_list"
             yield scrapy.Request(source_url, callback=self.parse_detail, cb_kwargs={"seed": seed})
 

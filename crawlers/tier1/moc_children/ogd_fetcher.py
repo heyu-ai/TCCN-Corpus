@@ -20,8 +20,9 @@ import jsonlines
 import requests
 from bs4 import BeautifulSoup
 
+from crawlers.config import USER_AGENT
+
 DEFAULT_OUTPUT = Path("data/raw/moc_ogd.jsonl")
-USER_AGENT = "TCCN-Corpus-Bot/1.0 (+https://github.com/howie/TCCN-Corpus)"
 TIMEOUT = 30
 
 
@@ -206,7 +207,10 @@ def main() -> None:
     session = build_session()
     resource_url = resolve_resource_url(config, session)
     payload = fetch_payload(session, resource_url)
-    normalized = [normalize_record(record, index) for index, record in enumerate(iter_records(payload), start=1)]
+    normalized = (
+        normalize_record(record, index)
+        for index, record in enumerate(iter_records(payload), start=1)
+    )
     written = write_jsonl(normalized, config.output)
     summary = {
         "resource_url": resource_url,
