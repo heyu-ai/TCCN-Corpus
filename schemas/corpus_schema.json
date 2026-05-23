@@ -3,7 +3,7 @@
   "title": "TCCN-Corpus Entry Schema",
   "description": "Taiwan Age-Appropriate Children's Story & Nursery Rhymes Corpus",
   "type": "object",
-  "required": ["id", "source", "content_type", "language", "title", "body", "age_range", "collected_at"],
+  "required": ["id", "source", "content_type", "language", "title", "body", "age_range", "license_type", "collected_at"],
   "properties": {
     "id": {
       "type": "string",
@@ -118,10 +118,19 @@
       "type": "string",
       "description": "授權資訊，例：CC BY 4.0、政府資料開放授權條款"
     },
+    "license_type": {
+      "type": "string",
+      "enum": ["ogdl-tw-1", "research-only", "commercial"],
+      "description": "授權分類，用於區分可商用 OGD、研究限定或商業版權資料"
+    },
     "collected_at": {
       "type": "string",
       "format": "date-time",
       "description": "爬取時間（ISO 8601）"
+    },
+    "raw_metadata": {
+      "type": "object",
+      "description": "保留原始來源 metadata 供後續欄位對齊與除錯使用"
     },
     "cleaned_at": {
       "type": "string",
