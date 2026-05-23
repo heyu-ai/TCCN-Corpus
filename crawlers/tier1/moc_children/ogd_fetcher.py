@@ -10,11 +10,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import jsonlines
 import requests
@@ -31,6 +32,7 @@ class FetchConfig:
     resource_url: str | None
     dataset_url: str | None
     output: Path
+    check_only: bool
 
 
 def parse_args() -> FetchConfig:
@@ -38,11 +40,17 @@ def parse_args() -> FetchConfig:
     parser.add_argument("--resource-url", default=os.getenv("MOC_OGD_RESOURCE_URL"))
     parser.add_argument("--dataset-url", default=os.getenv("MOC_OGD_DATASET_URL"))
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT))
+    parser.add_argument(
+        "--check-only",
+        action="store_true",
+        help="只解析 dataset/resource URL 並輸出檢查結果，不抓資料、不寫檔。",
+    )
     args = parser.parse_args()
     return FetchConfig(
         resource_url=args.resource_url,
         dataset_url=args.dataset_url,
         output=Path(args.output),
+        check_only=args.check_only,
     )
 
 
@@ -56,15 +64,57 @@ def discover_resource_url(session: requests.Session, dataset_url: str) -> str:
     response = session.get(dataset_url, timeout=TIMEOUT)
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
-    for anchor in soup.select("a[href]"):
-        href = anchor.get("href", "").strip()
+    for anchor in soup.select("a[href], a[data-url]"):
+        href = (anchor.get("href") or anchor.get("data-url") or "").strip()
         label = anchor.get_text(" ", strip=True).lower()
         if ".json" in href.lower() or "json" in label:
             return urljoin(dataset_url, href)
+
+    # Some CKAN pages keep resource links in scripts instead of visible anchors.
+    for match in re.finditer(r'https?://[^"\'\s>]+\.json(?:\?[^"\'\s>]*)?', response.text, flags=re.IGNORECASE):
+        return match.group(0)
+
+    hinted_url = discover_from_ckan_api(session, dataset_url)
+    if hinted_url:
+        return hinted_url
+
     raise RuntimeError(
         "無法從 data.gov.tw dataset 頁面找到 JSON 資源 URL。"
         "請改用 --resource-url 或設定 MOC_OGD_RESOURCE_URL。"
     )
+
+
+def discover_from_ckan_api(session: requests.Session, dataset_url: str) -> str | None:
+    hint = dataset_hint_from_url(dataset_url)
+    if not hint:
+        return None
+    api_url = "https://data.gov.tw/api/3/action/package_search"
+    params = {"q": hint, "rows": 5}
+    response = session.get(api_url, params=params, timeout=TIMEOUT)
+    response.raise_for_status()
+    payload = response.json()
+    for result in payload.get("result", {}).get("results", []):
+        for resource in result.get("resources", []):
+            url = str(resource.get("url") or "").strip()
+            fmt = str(resource.get("format") or "").lower()
+            name = str(resource.get("name") or "").lower()
+            if not url:
+                continue
+            if ".json" in url.lower() or "json" in fmt or "json" in name:
+                return url
+    return None
+
+
+def dataset_hint_from_url(dataset_url: str) -> str:
+    parsed = urlparse(dataset_url)
+    segments = [segment for segment in parsed.path.split("/") if segment]
+    if not segments:
+        return ""
+    if "dataset" in segments:
+        idx = segments.index("dataset")
+        if idx + 1 < len(segments):
+            return segments[idx + 1]
+    return segments[-1]
 
 
 def fetch_payload(session: requests.Session, resource_url: str) -> Any:
@@ -206,6 +256,20 @@ def main() -> None:
     config = parse_args()
     session = build_session()
     resource_url = resolve_resource_url(config, session)
+    if config.check_only:
+        print(
+            json.dumps(
+                {
+                    "mode": "check-only",
+                    "dataset_url": config.dataset_url,
+                    "resource_url": resource_url,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return
+
     payload = fetch_payload(session, resource_url)
     normalized = (
         normalize_record(record, index)

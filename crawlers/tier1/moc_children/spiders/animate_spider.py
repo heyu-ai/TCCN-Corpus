@@ -1,13 +1,24 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
+from urllib.parse import urlparse
 
 import scrapy
 
 from crawlers.config import CONCURRENT_REQUESTS_PER_DOMAIN, DOWNLOAD_DELAY, USER_AGENT
+
+
+LOGGER = logging.getLogger(__name__)
+DEFAULT_LIST_URL = "https://children.moc.gov.tw/animate_list"
+
+
+def is_allowed_source_url(url: str) -> bool:
+    host = urlparse(url).hostname or ""
+    return host == "children.moc.gov.tw"
 
 
 def iter_seed_entries(seed_path: Path) -> Iterator[dict]:
@@ -17,11 +28,19 @@ def iter_seed_entries(seed_path: Path) -> Iterator[dict]:
         )
 
     with seed_path.open(encoding="utf-8") as handle:
-        for line in handle:
+        for line_no, line in enumerate(handle, start=1):
             line = line.strip()
             if not line:
                 continue
-            yield json.loads(line)
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                LOGGER.warning("略過無效 JSON seed（line=%s）", line_no)
+                continue
+            if not isinstance(entry, dict):
+                LOGGER.warning("略過非物件 seed（line=%s, type=%s）", line_no, type(entry).__name__)
+                continue
+            yield entry
 
 
 class AnimateSpider(scrapy.Spider):
@@ -39,7 +58,9 @@ class AnimateSpider(scrapy.Spider):
 
     def start_requests(self):
         for seed in iter_seed_entries(self.seed_file):
-            source_url = seed.get("source_url") or "https://children.moc.gov.tw/animate_list"
+            source_url = seed.get("source_url") or DEFAULT_LIST_URL
+            if not is_allowed_source_url(source_url):
+                source_url = DEFAULT_LIST_URL
             yield scrapy.Request(source_url, callback=self.parse_detail, cb_kwargs={"seed": seed})
 
     def parse_detail(self, response: scrapy.http.Response, seed: dict):
