@@ -11,6 +11,7 @@ requires-python = ">=3.11"
 dependencies = [
   "beautifulsoup4>=4.12,<5",
   "jsonlines>=4.0,<5",
+  "jsonschema>=4.21,<5",
   "playwright>=1.45,<2",
   "requests>=2.31,<3",
   "scrapy>=2.11,<3",
@@ -29,4 +30,4 @@ testpaths = ["tests"]
 include-package-data = true
 
 [tool.setuptools.packages.find]
-include = ["crawlers*"]
+include = ["crawlers*", "schemas*"]
