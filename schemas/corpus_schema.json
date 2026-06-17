@@ -3,6 +3,7 @@
   "title": "TCCN-Corpus Entry Schema",
   "description": "Taiwan Age-Appropriate Children's Story & Nursery Rhymes Corpus",
   "type": "object",
+  "additionalProperties": false,
   "required": ["id", "source", "content_type", "language", "title", "body", "age_range", "license_type", "collected_at"],
   "properties": {
     "id": {
@@ -47,6 +48,7 @@
     },
     "age_range": {
       "type": "object",
+      "additionalProperties": false,
       "required": ["min", "max"],
       "properties": {
         "min": { "type": "integer", "minimum": 0, "maximum": 12 },
@@ -69,6 +71,7 @@
     },
     "phonics": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "rhyme_scheme": {
           "type": "string",

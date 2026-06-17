@@ -10,12 +10,13 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from crawlers.config import USER_AGENT
+
 TARGETS = [
     "https://children.moc.gov.tw/robots.txt",
     "https://storybook.nlpi.edu.tw/robots.txt",
     "https://ebook.nlpi.edu.tw/robots.txt",
 ]
-USER_AGENT = "TCCN-Corpus-Bot/1.0 (+https://github.com/howie/TCCN-Corpus)"
 
 
 @dataclass

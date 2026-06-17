@@ -4,13 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tccn-corpus"
-version = "0.1.0"
+version = "0.1.1"
 description = "Taiwan Age-Appropriate Children's Story & Nursery Rhymes Corpus tooling"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "beautifulsoup4>=4.12,<5",
   "jsonlines>=4.0,<5",
+  "jsonschema[format-nongpl]>=4.21,<5",
   "playwright>=1.45,<2",
   "requests>=2.31,<3",
   "scrapy>=2.11,<3",
@@ -29,4 +30,7 @@ testpaths = ["tests"]
 include-package-data = true
 
 [tool.setuptools.packages.find]
-include = ["crawlers*"]
+include = ["crawlers*", "schemas*"]
+
+[tool.setuptools.package-data]
+schemas = ["*.json"]
