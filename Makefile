@@ -13,12 +13,12 @@ ogd-check: check-python
 	$(PYTHON) -m crawlers.tier1.moc_children.ogd_fetcher --check-only
 
 robots-check: check-python
-	$(PYTHON) scripts/check_robots.py
+	$(PYTHON) -m scripts.check_robots
 
 schema-check: check-python
-	@files=$$(ls data/raw/*.jsonl 2>/dev/null); \
-	if [ -z "$$files" ]; then \
+	@set -- data/raw/*.jsonl; \
+	if [ ! -e "$$1" ]; then \
 		echo "[SKIP] data/raw/*.jsonl 不存在，尚無語料可驗證（先執行爬蟲產出 JSONL）。"; \
 	else \
-		$(PYTHON) -m schemas.validate $$files; \
+		$(PYTHON) -m schemas.validate "$$@"; \
 	fi

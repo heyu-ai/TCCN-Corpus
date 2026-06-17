@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import jsonschema
+from jsonschema import Draft7Validator
 
 SCHEMA_PATH = Path(__file__).with_name("corpus_schema.json")
 
@@ -27,9 +28,20 @@ def load_schema() -> dict[str, Any]:
     return json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
 
 
+@lru_cache(maxsize=1)
+def _validator() -> Draft7Validator:
+    """
+    建立並快取單一 validator，避免每筆記錄重跑 schema meta-validation。
+
+    傳入 FORMAT_CHECKER 才會真正驗證 schema 宣告的 `format`（uri / date-time）；
+    這些 checker 由 jsonschema[format-nongpl] 的 rfc3986-validator / rfc3339-validator 提供。
+    """
+    return Draft7Validator(load_schema(), format_checker=Draft7Validator.FORMAT_CHECKER)
+
+
 def validate_record(record: dict[str, Any]) -> None:
-    """驗證單筆記錄，不符 schema 時拋出 jsonschema.ValidationError。"""
-    jsonschema.validate(instance=record, schema=load_schema())
+    """驗證單筆記錄，不符 schema（含 format）時拋出 jsonschema.ValidationError。"""
+    _validator().validate(record)
 
 
 def _format_error(line_no: int, error: jsonschema.ValidationError) -> str:

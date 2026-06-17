@@ -73,6 +73,27 @@ def test_enum_violation_fails():
         validate_record(record)
 
 
+def test_invalid_datetime_format_fails():
+    record = make_valid_record()
+    record["collected_at"] = "not-a-date"
+    with pytest.raises(jsonschema.ValidationError):
+        validate_record(record)
+
+
+def test_invalid_uri_format_fails():
+    record = make_valid_record()
+    record["source_url"] = "garbage"
+    with pytest.raises(jsonschema.ValidationError):
+        validate_record(record)
+
+
+def test_nested_additional_property_fails():
+    record = make_valid_record()
+    record["age_range"] = {"min": 0, "max": 6, "foo": "x"}
+    with pytest.raises(jsonschema.ValidationError):
+        validate_record(record)
+
+
 def test_validate_jsonl_reports_pass_and_errors(tmp_path):
     good = make_valid_record()
     bad = make_valid_record()
@@ -88,3 +109,17 @@ def test_validate_jsonl_reports_pass_and_errors(tmp_path):
     assert passed == 1
     assert len(errors) == 1
     assert "第 3 行" in errors[0]
+
+
+def test_validate_jsonl_reports_json_parse_error(tmp_path):
+    good = make_valid_record()
+    path = tmp_path / "broken.jsonl"
+    path.write_text(
+        json.dumps(good, ensure_ascii=False) + "\n"
+        + "{not valid json\n",
+        encoding="utf-8",
+    )
+    passed, errors = validate_jsonl(path)
+    assert passed == 1
+    assert len(errors) == 1
+    assert "JSON 解析失敗" in errors[0]
