@@ -1,6 +1,6 @@
 PYTHON ?= $(shell command -v python3 2>/dev/null || command -v /home/node/bin/python3 2>/dev/null || command -v python 2>/dev/null)
 
-.PHONY: test test-unit check-python ogd-check robots-check schema-check crawl-moc crawl-yuanmeng phase2-check
+.PHONY: test test-unit check-python ogd-check robots-check schema-check crawl-moc crawl-moc-song crawl-yuanmeng phase2-check phase3-check
 
 check-python:
 	@test -n "$(PYTHON)" || (echo "python executable not found; set PYTHON=/path/to/python" >&2; exit 1)
@@ -30,10 +30,22 @@ crawl-moc: check-python
 		crawlers/tier1/moc_children/spiders/listing_spider.py \
 		-O data/raw/moc_listing.jsonl:jsonlines
 
-# Phase 2: 圓夢繪本 metadata dry-run（不抓全文）
+# Phase 3: 文化部兒童文化館兒歌爬取（四語言分類）
+crawl-moc-song: check-python
+	SCRAPY_SETTINGS_MODULE=crawlers.tier1.moc_children.settings \
+		$(PYTHON) -m scrapy runspider \
+		crawlers/tier1/moc_children/spiders/song_spider.py \
+		-O data/raw/moc_song.jsonl:jsonlines
+
+# Phase 3: 圓夢繪本全站書目 metadata（All Rights Reserved，license_type=research-only）
 crawl-yuanmeng: check-python
-	$(PYTHON) -m crawlers.tier1.yuanmeng.yuanmeng_crawler
+	$(PYTHON) -m crawlers.tier1.yuanmeng.yuanmeng_crawler --mode metadata \
+		--output data/raw/yuanmeng_metadata.jsonl
 
 # Phase 2: 爬取後驗證 Schema 對齊度
 phase2-check: schema-check
 	@echo "--- Phase 2 Schema alignment check done ---"
+
+# Phase 3: 爬取後驗證 Schema 對齊度（含兒歌）
+phase3-check: schema-check
+	@echo "--- Phase 3 Schema alignment check done ---"

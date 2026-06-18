@@ -1,10 +1,18 @@
 from urllib.parse import urljoin
 
+import jsonschema
+
+from schemas.validate import load_schema
+
 from crawlers.tier1.yuanmeng.yuanmeng_crawler import (
     BASE_URL,
     build_dry_run_payload,
     filter_book_links,
     filter_pagination,
+    map_language,
+    normalize_book_record,
+    parse_age_range,
+    parse_book_id,
 )
 
 
@@ -71,3 +79,71 @@ def test_filter_pagination_matches_href_page_pattern():
     assert "/list?page=1" in hrefs
     assert "/list?page=2" in hrefs
     assert "/about" not in hrefs
+
+
+# --- Phase 3: metadata pure-function tests ---
+
+def test_parse_book_id_extracts_number():
+    assert parse_book_id("openWindow('playbook2.aspx?NO=125')") == "125"
+
+
+def test_parse_book_id_returns_none_when_absent():
+    assert parse_book_id("") is None
+    assert parse_book_id("openWindow('about.aspx')") is None
+
+
+def test_map_language_mandarin():
+    assert map_language("中文") == "zh-TW"
+    assert map_language("中文+拼注音") == "zh-TW"
+
+
+def test_map_language_taiwanese():
+    assert map_language("台語") == "nan-TW"
+    assert map_language("臺語版") == "nan-TW"
+
+
+def test_map_language_hakka():
+    assert map_language("客語") == "hak-TW"
+
+
+def test_map_language_english():
+    assert map_language("英文") == "en"
+
+
+def test_map_language_defaults_to_zh_tw():
+    assert map_language("") == "zh-TW"
+    assert map_language("不知道") == "zh-TW"
+
+
+def test_parse_age_range_standard():
+    assert parse_age_range("7-9歲") == {"min": 7, "max": 9}
+    assert parse_age_range("10-12歲") == {"min": 10, "max": 12}
+    assert parse_age_range("0-3歲") == {"min": 0, "max": 3}
+
+
+def test_parse_age_range_defaults_when_empty():
+    assert parse_age_range("") == {"min": 0, "max": 12}
+    assert parse_age_range("適讀年齡不明") == {"min": 0, "max": 12}
+
+
+def test_normalize_book_record_passes_schema():
+    card = {
+        "title": "小紅帽的故事",
+        "author": "某作者",
+        "language": "中文+拼注音",
+        "onclick": "openWindow('playbook2.aspx?NO=125')",
+        "age_text": "7-9歲",
+    }
+    record = normalize_book_record(card, 1)
+    assert record is not None
+    jsonschema.validate(record, load_schema(), format_checker=jsonschema.Draft7Validator.FORMAT_CHECKER)
+    assert record["content_type"] == "picture_book"
+    assert record["license_type"] == "research-only"
+    assert record["language"] == ["zh-TW"]
+    assert record["age_range"] == {"min": 7, "max": 9}
+    assert record["raw_metadata"]["book_id"] == "125"
+
+
+def test_normalize_book_record_returns_none_without_book_id():
+    card = {"title": "無ID書", "onclick": "openWindow('about.aspx')"}
+    assert normalize_book_record(card, 1) is None
