@@ -53,7 +53,7 @@ def _url_id(url: str) -> str:
 
 def extract_song_links(response) -> list[str]:
     """Extract absolute song-detail URLs from a listing-page response."""
-    hrefs = response.css("a[href^='/song/']::attr(href)").getall()
+    hrefs = response.css("a[href*='/song/']::attr(href)").getall()
     seen: set[str] = set()
     urls: list[str] = []
     for href in hrefs:
@@ -77,8 +77,8 @@ def next_page_url(response) -> str | None:
     return absolute if absolute != response.url else None
 
 
-def infer_language_from_meta(response) -> str:
-    """Infer language code from detail-page 類別 metadata."""
+def infer_language_from_meta(response) -> str | None:
+    """Infer language code from detail-page 類別 metadata; returns None if absent."""
     meta_items = response.css("ul li::text").getall()
     for text in meta_items:
         text = text.strip()
@@ -86,11 +86,11 @@ def infer_language_from_meta(response) -> str:
             for keyword, code in _LANG_MAP.items():
                 if keyword in text:
                     return code
-    return "zh-TW"
+    return None
 
 
 def extract_metadata(response) -> dict:
-    """Parse metadata list (作曲/作詞/演唱) from detail page."""
+    """Parse metadata list (作曲/作詞/演唱/類別) from detail page."""
     result: dict = {}
     for item in response.css("ul li::text").getall():
         item = item.strip()
@@ -109,7 +109,7 @@ def normalize_song_record(
     """Build a corpus schema record from a song detail page."""
     url = response.url
     title = (response.css("h1::text").get() or "").strip() or f"MOC song {index}"
-    body = title  # lyrics require PDF extraction (Phase 4)
+    body = title  # body = title; full lyrics require PDF extraction
 
     pdf_href = response.css("a[href*='song_pdf']::attr(href)").get() or ""
     pdf_url = response.urljoin(pdf_href) if pdf_href else ""

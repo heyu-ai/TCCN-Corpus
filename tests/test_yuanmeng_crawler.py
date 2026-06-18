@@ -106,8 +106,8 @@ def test_map_language_hakka():
     assert map_language("客語") == "hak-TW"
 
 
-def test_map_language_english():
-    assert map_language("英文") == "en"
+def test_map_language_english_falls_back_to_zh_tw():
+    assert map_language("英文") == "zh-TW"
 
 
 def test_map_language_defaults_to_zh_tw():

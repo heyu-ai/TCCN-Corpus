@@ -19,6 +19,7 @@ import argparse
 import asyncio
 import hashlib
 import json
+import logging
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -43,7 +44,6 @@ _LANG_MAP: dict[str, str] = {
     "閩南語": "nan-TW",
     "客語": "hak-TW",
     "客家語": "hak-TW",
-    "英文": "en",
     "原住民": "indigenous",
 }
 
@@ -70,7 +70,7 @@ def parse_age_range(age_text: str) -> dict:
     """Parse age range text like '7-9歲' into {min, max}; defaults to {0, 12}."""
     m = re.search(r"(\d+)[^\d]+(\d+)", age_text)
     if m:
-        return {"min": int(m.group(1)), "max": int(m.group(2))}
+        return {"min": max(0, int(m.group(1))), "max": min(int(m.group(2)), 12)}
     return {"min": 0, "max": 12}
 
 
@@ -84,6 +84,7 @@ def normalize_book_record(card_data: dict, index: int) -> dict | None:
     onclick = card_data.get("onclick", "")
     book_id = parse_book_id(onclick)
     if not book_id:
+        logging.warning("Skipping card (no book_id): %s", title)
         return None
 
     source_url = f"https://storybook.nlpi.edu.tw/book-single.aspx?BookNO={book_id}"
@@ -192,8 +193,22 @@ async def run(output: Path) -> None:
             await browser.close()
 
 
+def _write_jsonl(output: Path, records: list[dict]) -> None:
+    with output.open("w", encoding="utf-8") as fh:
+        for record in records:
+            fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
 async def run_metadata(output: Path, max_pages: int = 50) -> None:
-    """Paginate all-books listing and emit corpus schema JSONL (metadata only)."""
+    """Paginate all-books listing and emit corpus schema JSONL (metadata only).
+
+    Args:
+        output: Destination JSONL path.
+        max_pages: Upper bound on page iterations (default 50).
+
+    Termination: stops early when a page returns 0 cards or all cards on a
+    page are already seen (deduped). Partial results are written on exception.
+    """
     output.parent.mkdir(parents=True, exist_ok=True)
     records: list[dict] = []
 
@@ -235,12 +250,14 @@ async def run_metadata(output: Path, max_pages: int = 50) -> None:
 
                 if new_on_page == 0:
                     break
+        except Exception:
+            logging.warning("run_metadata interrupted; writing %d partial records", len(records))
+            _write_jsonl(output, records)
+            raise
         finally:
             await browser.close()
 
-    with output.open("w", encoding="utf-8") as fh:
-        for record in records:
-            fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+    _write_jsonl(output, records)
 
 
 def parse_args() -> argparse.Namespace:

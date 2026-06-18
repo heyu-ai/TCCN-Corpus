@@ -92,10 +92,10 @@ def test_infer_language_from_meta_indigenous(fake_response):
     assert infer_language_from_meta(response) == "indigenous"
 
 
-def test_infer_language_defaults_to_mandarin_when_unknown(fake_response):
+def test_infer_language_returns_none_when_no_category(fake_response):
     html = "<ul><li>作曲：某人</li></ul>"
     response = fake_response("https://children.moc.gov.tw/song/5", html)
-    assert infer_language_from_meta(response) == "zh-TW"
+    assert infer_language_from_meta(response) is None
 
 
 def test_normalize_song_record_passes_schema(fake_response):
