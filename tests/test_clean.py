@@ -1,9 +1,8 @@
 import json
-from pathlib import Path
 
 import pytest
 
-from scripts.clean import CLEANED_DIR, clean_body, normalize_fullwidth, process_file
+from scripts.clean import clean_body, normalize_fullwidth, process_file
 
 
 def test_normalize_fullwidth_ascii():

@@ -1,10 +1,8 @@
 import json
-from pathlib import Path
 
 import pytest
 
 from scripts.label import (
-    LABELED_DIR,
     analyze_phonics,
     detect_action_cues,
     detect_themes,
