@@ -57,3 +57,34 @@ def test_start_requests_fallbacks_to_default_for_external_url(tmp_path):
     spider = AnimateSpider(seed_file=str(seed_path))
     req = next(spider.start_requests())
     assert req.url == "https://children.moc.gov.tw/animate_list"
+
+
+def test_parse_detail_extracts_title_from_h1(fake_response):
+    seed = {"id": "MOC-000001", "title": "種子標題", "body": "種子內文"}
+    html = "<h1>頁面標題</h1><main><p>頁面段落內文。</p></main>"
+    spider = AnimateSpider.__new__(AnimateSpider)
+    response = fake_response("https://children.moc.gov.tw/book/1", html)
+    result = list(spider.parse_detail(response, seed=seed))
+    assert len(result) == 1
+    assert result[0]["title"] == "頁面標題"
+
+
+def test_parse_detail_falls_back_to_seed_title_when_page_has_none(fake_response):
+    seed = {"id": "MOC-000002", "title": "種子標題", "body": "種子內文"}
+    html = "<div>無 h1/h2 標題</div>"
+    spider = AnimateSpider.__new__(AnimateSpider)
+    response = fake_response("https://children.moc.gov.tw/book/2", html)
+    result = list(spider.parse_detail(response, seed=seed))
+    assert result[0]["title"] == "種子標題"
+    assert result[0]["body"] == "種子內文"
+
+
+def test_parse_detail_extracts_body_from_main_paragraphs(fake_response):
+    seed = {"id": "MOC-000003", "title": "T", "body": ""}
+    html = "<main><p>第一段。</p><p>第二段。</p></main>"
+    spider = AnimateSpider.__new__(AnimateSpider)
+    response = fake_response("https://children.moc.gov.tw/book/3", html)
+    result = list(spider.parse_detail(response, seed=seed))
+    assert "第一段" in result[0]["body"]
+    assert "第二段" in result[0]["body"]
+    assert result[0]["word_count"] == len(result[0]["body"])

@@ -1,6 +1,9 @@
-from crawlers.config import CONCURRENT_REQUESTS_PER_DOMAIN, DOWNLOAD_DELAY, USER_AGENT
+import crawlers.config as _config
 
 BOT_NAME = "tccn_moc_children"
+USER_AGENT = _config.USER_AGENT
+DOWNLOAD_DELAY = _config.DOWNLOAD_DELAY
+CONCURRENT_REQUESTS_PER_DOMAIN = _config.CONCURRENT_REQUESTS_PER_DOMAIN
 
 SPIDER_MODULES = ["crawlers.tier1.moc_children.spiders"]
 NEWSPIDER_MODULE = "crawlers.tier1.moc_children.spiders"
