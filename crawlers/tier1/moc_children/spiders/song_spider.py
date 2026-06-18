@@ -15,9 +15,8 @@ OGD 資料集已下架；本 spider 直接爬取網站列表頁，依語言分�
 from __future__ import annotations
 
 import hashlib
-import re
 from datetime import datetime, timezone
-from typing import Iterator
+from typing import AsyncIterator, Iterator
 from urllib.parse import urlparse
 
 import scrapy
@@ -79,24 +78,29 @@ def next_page_url(response) -> str | None:
 
 def infer_language_from_meta(response) -> str | None:
     """Infer language code from detail-page 類別 metadata; returns None if absent."""
-    meta_items = response.css("ul li::text").getall()
-    for text in meta_items:
-        text = text.strip()
-        if "類別" in text:
+    for li in response.css("h2 + ul li"):
+        label = "".join(li.css("span::text").getall()).replace("：", "").strip()
+        if label == "類別":
+            value = " ".join(t.strip() for t in li.xpath("text()").getall() if t.strip())
             for keyword, code in _LANG_MAP.items():
-                if keyword in text:
+                if keyword in value:
                     return code
     return None
 
 
 def extract_metadata(response) -> dict:
-    """Parse metadata list (作曲/作詞/演唱/類別) from detail page."""
+    """Parse metadata list (作曲/作詞/演唱/類別) from detail page.
+
+    Page structure: <h2>title</h2><ul class="list-unstyled"><li><span>欄位</span><span>：</span>值</li>
+    The field label is in <span> tags; value is a direct text node in <li>.
+    """
     result: dict = {}
-    for item in response.css("ul li::text").getall():
-        item = item.strip()
+    for li in response.css("h2 + ul li"):
+        label = "".join(li.css("span::text").getall()).replace("：", "").strip()
+        value = " ".join(t.strip() for t in li.xpath("text()").getall() if t.strip())
         for field, key in (("作曲", "composer"), ("作詞", "lyricist"), ("演唱", "singer"), ("類別", "category")):
-            if item.startswith(field):
-                result[key] = re.sub(rf"^{field}[：:]\s*", "", item).strip()
+            if label == field:
+                result[key] = value
     return result
 
 
@@ -108,7 +112,7 @@ def normalize_song_record(
 ) -> dict:
     """Build a corpus schema record from a song detail page."""
     url = response.url
-    title = (response.css("h1::text").get() or "").strip() or f"MOC song {index}"
+    title = (response.css("h2::text").get() or "").strip() or f"MOC song {index}"
     body = title  # body = title; full lyrics require PDF extraction
 
     pdf_href = response.css("a[href*='song_pdf']::attr(href)").get() or ""
@@ -171,7 +175,7 @@ class SongSpider(scrapy.Spider):
         self._counter = 0
         self._seen_urls: set[str] = set()
 
-    def start_requests(self):
+    async def start(self) -> AsyncIterator:
         for lang_param, lang_code, _ in LANGUAGE_SEEDS:
             url = f"{SONG_LIST_URL}?language={lang_param}"
             yield scrapy.Request(url, callback=self.parse, cb_kwargs={"language": lang_code})

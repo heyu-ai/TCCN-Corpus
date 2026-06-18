@@ -1,6 +1,6 @@
 PYTHON ?= $(shell command -v python3 2>/dev/null || command -v /home/node/bin/python3 2>/dev/null || command -v python 2>/dev/null)
 
-.PHONY: test test-unit check-python ogd-check robots-check schema-check crawl-moc crawl-moc-song crawl-yuanmeng phase2-check phase3-check clean-data label-data phase4-check
+.PHONY: test test-unit check-python ogd-check robots-check schema-check crawl-moc crawl-moc-song crawl-yuanmeng phase2-check phase3-check clean-data label-data phase4-check extract-song-lyrics phase5-check
 
 check-python:
 	@test -n "$(PYTHON)" || (echo "python executable not found; set PYTHON=/path/to/python" >&2; exit 1)
@@ -57,6 +57,14 @@ clean-data: check-python
 # Phase 4: 標籤化 data/cleaned/*.jsonl → data/labeled/（依賴 clean-data，確保序列執行）
 label-data: check-python clean-data
 	$(PYTHON) scripts/label.py
+
+# Phase 5a: 下載兒歌 PDF 萃取歌詞，原地回填 data/raw/moc_song.jsonl（需先執行 crawl-moc-song）
+extract-song-lyrics: check-python
+	$(PYTHON) scripts/extract_song_lyrics.py
+
+# Phase 5a: 爬取兒歌 + 萃取歌詞（完整 Phase 5a pipeline）
+phase5-check: extract-song-lyrics phase4-check
+	@echo "--- Phase 5a Song lyrics extraction + pipeline check done ---"
 
 # Phase 4: 清洗 + 標籤化 + Schema 驗證
 phase4-check: label-data

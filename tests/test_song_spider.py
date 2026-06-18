@@ -50,16 +50,28 @@ def test_next_page_url_resolves_chinese_next(fake_response):
     assert url == "https://children.moc.gov.tw/song_list?language=1&page=2"
 
 
-def test_extract_metadata_parses_moc_detail(fake_response):
-    html = """
-    <h1>讓愛看得的見</h1>
-    <ul>
-      <li>類別： 華語</li>
-      <li>作曲： 王溪泉、賴家慶</li>
-      <li>作詞： 洪順齊</li>
-      <li>演唱： 周予柔</li>
-    </ul>
+def _meta_ul(*items: tuple[str, str]) -> str:
+    """Helper: build MOC-style metadata ul from (field, value) pairs.
+
+    Real page structure:
+      <h2>歌名</h2>
+      <ul class="list-unstyled">
+        <li><span>類別</span><span>：</span>\n  華語\n</li>
+        ...
+      </ul>
     """
+    lis = "".join(
+        f'<li><span>{field}</span><span>：</span>\n  {value}\n</li>'
+        for field, value in items
+    )
+    return f'<ul class="list-unstyled">{lis}</ul>'
+
+
+def test_extract_metadata_parses_moc_detail(fake_response):
+    html = (
+        "<h2>讓愛看得的見</h2>"
+        + _meta_ul(("類別", "華語"), ("作曲", "王溪泉、賴家慶"), ("作詞", "洪順齊"), ("演唱", "周予柔"))
+    )
     response = fake_response("https://children.moc.gov.tw/song/479", html)
     meta = extract_metadata(response)
     assert meta["composer"] == "王溪泉、賴家慶"
@@ -69,41 +81,41 @@ def test_extract_metadata_parses_moc_detail(fake_response):
 
 
 def test_infer_language_from_meta_mandarin(fake_response):
-    html = "<ul><li>類別： 華語</li></ul>"
+    html = "<h2>X</h2>" + _meta_ul(("類別", "華語"))
     response = fake_response("https://children.moc.gov.tw/song/1", html)
     assert infer_language_from_meta(response) == "zh-TW"
 
 
 def test_infer_language_from_meta_taiwanese(fake_response):
-    html = "<ul><li>類別： 臺灣台語</li></ul>"
+    html = "<h2>X</h2>" + _meta_ul(("類別", "臺灣台語"))
     response = fake_response("https://children.moc.gov.tw/song/2", html)
     assert infer_language_from_meta(response) == "nan-TW"
 
 
 def test_infer_language_from_meta_hakka(fake_response):
-    html = "<ul><li>類別： 客語</li></ul>"
+    html = "<h2>X</h2>" + _meta_ul(("類別", "客語"))
     response = fake_response("https://children.moc.gov.tw/song/3", html)
     assert infer_language_from_meta(response) == "hak-TW"
 
 
 def test_infer_language_from_meta_indigenous(fake_response):
-    html = "<ul><li>類別： 原住民族語</li></ul>"
+    html = "<h2>X</h2>" + _meta_ul(("類別", "原住民族語"))
     response = fake_response("https://children.moc.gov.tw/song/4", html)
     assert infer_language_from_meta(response) == "indigenous"
 
 
 def test_infer_language_returns_none_when_no_category(fake_response):
-    html = "<ul><li>作曲：某人</li></ul>"
+    html = "<h2>X</h2>" + _meta_ul(("作曲", "某人"))
     response = fake_response("https://children.moc.gov.tw/song/5", html)
     assert infer_language_from_meta(response) is None
 
 
 def test_normalize_song_record_passes_schema(fake_response):
-    html = """
-    <h1>雨的花蕊</h1>
-    <ul><li>類別： 臺灣台語</li><li>作詞： 某詞人</li></ul>
-    <a href="https://children.moc.gov.tw/resource/song_pdf/475.pdf">曲譜下載</a>
-    """
+    html = (
+        "<h2>雨的花蕊</h2>"
+        + _meta_ul(("類別", "臺灣台語"), ("作詞", "某詞人"))
+        + '<a href="https://children.moc.gov.tw/resource/song_pdf/475.pdf">曲譜下載</a>'
+    )
     response = fake_response("https://children.moc.gov.tw/song/475", html)
     meta = extract_metadata(response)
     lang = infer_language_from_meta(response)
