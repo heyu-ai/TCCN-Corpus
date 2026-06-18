@@ -1,6 +1,6 @@
 PYTHON ?= $(shell command -v python3 2>/dev/null || command -v /home/node/bin/python3 2>/dev/null || command -v python 2>/dev/null)
 
-.PHONY: test test-unit check-python ogd-check robots-check schema-check crawl-moc crawl-moc-song crawl-yuanmeng phase2-check phase3-check
+.PHONY: test test-unit check-python ogd-check robots-check schema-check crawl-moc crawl-moc-song crawl-yuanmeng phase2-check phase3-check clean-data label-data phase4-check
 
 check-python:
 	@test -n "$(PYTHON)" || (echo "python executable not found; set PYTHON=/path/to/python" >&2; exit 1)
@@ -49,3 +49,20 @@ phase2-check: schema-check
 # Phase 3: 爬取後驗證 Schema 對齊度（含兒歌）
 phase3-check: schema-check
 	@echo "--- Phase 3 Schema alignment check done ---"
+
+# Phase 4: 清洗 data/raw/*.jsonl → data/cleaned/
+clean-data: check-python
+	$(PYTHON) scripts/clean.py
+
+# Phase 4: 標籤化 data/cleaned/*.jsonl → data/labeled/（依賴 clean-data，確保序列執行）
+label-data: check-python clean-data
+	$(PYTHON) scripts/label.py
+
+# Phase 4: 清洗 + 標籤化 + Schema 驗證
+phase4-check: label-data
+	@set -- data/labeled/*.jsonl; \
+	if [ ! -e "$$1" ]; then \
+		echo "[SKIP] data/labeled/*.jsonl 不存在，先執行 make label-data。"; \
+	else \
+		$(PYTHON) -m schemas.validate "$$@" && echo "--- Phase 4 Schema alignment check done ---"; \
+	fi
