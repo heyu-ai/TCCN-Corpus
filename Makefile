@@ -25,10 +25,10 @@ schema-check: check-python
 
 # Phase 2: 直接從網站列表頁爬取（OGD data.gov.tw 資料集已下架）
 crawl-moc: check-python
-	$(PYTHON) -m scrapy runspider \
+	SCRAPY_SETTINGS_MODULE=crawlers.tier1.moc_children.settings \
+		$(PYTHON) -m scrapy runspider \
 		crawlers/tier1/moc_children/spiders/listing_spider.py \
-		-o data/raw/moc_listing.jsonl:jsonlines \
-		-s SETTINGS_MODULE=crawlers.tier1.moc_children.settings
+		-O data/raw/moc_listing.jsonl:jsonlines
 
 # Phase 2: 圓夢繪本 metadata dry-run（不抓全文）
 crawl-yuanmeng: check-python

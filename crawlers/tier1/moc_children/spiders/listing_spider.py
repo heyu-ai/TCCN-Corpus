@@ -3,14 +3,17 @@
 
 OGD data.gov.tw 三筆兒童文化館資料集已下架（2026-06-16 確認），無法透過
 ogd_fetcher 取得 seed list。本 spider 直接爬取網站列表頁，產出與 ogd_fetcher
-相同 schema 格式的 data/raw/moc_listing.jsonl。
+相同欄位集合的 data/raw/moc_listing.jsonl（language/themes/age_range 為硬編碼
+預設值，非 metadata 推算）。
 
-使用方式（OGD 可用時改用 ogd_fetcher + animate_spider）：
-  uv run scrapy runspider crawlers/tier1/moc_children/spiders/listing_spider.py \\
-    -o data/raw/moc_listing.jsonl:jsonlines
+使用方式（OGD 可用時改用 ogd_fetcher + animate_spider；建議透過 Makefile 執行）：
+  SCRAPY_SETTINGS_MODULE=crawlers.tier1.moc_children.settings \\
+    python -m scrapy runspider crawlers/tier1/moc_children/spiders/listing_spider.py \\
+    -O data/raw/moc_listing.jsonl:jsonlines
 """
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timezone
 from typing import Iterator
 from urllib.parse import urlparse
@@ -74,14 +77,20 @@ def build_raw_record(response) -> dict:
     }
 
 
+def _url_id(url: str) -> str:
+    """Derive a stable 6-char hex ID suffix from a URL."""
+    return hashlib.sha256(url.encode()).hexdigest()[:6]
+
+
 def normalize_listing_record(raw: dict, index: int) -> dict:
     """Convert a raw detail-page record to corpus schema format."""
     title = raw.get("title") or f"MOC listing {index}"
     body = raw.get("description") or title
-    return {
-        "id": f"MOC-{index:06d}",
+    url = raw.get("url") or ""
+    record_id = f"MOC-{_url_id(url)}" if url else f"MOC-{index:06d}"
+    record: dict = {
+        "id": record_id,
         "source": "MOC_CHILDREN",
-        "source_url": raw.get("url", ""),
         "content_type": "animation_script",
         "language": ["zh-TW"],
         "title": title,
@@ -98,6 +107,9 @@ def normalize_listing_record(raw: dict, index: int) -> dict:
         "collected_at": datetime.now(timezone.utc).isoformat(),
         "raw_metadata": raw,
     }
+    if url:
+        record["source_url"] = url
+    return record
 
 
 class ListingSpider(scrapy.Spider):
@@ -115,21 +127,25 @@ class ListingSpider(scrapy.Spider):
         "USER_AGENT": USER_AGENT,
         "DOWNLOAD_DELAY": DOWNLOAD_DELAY,
         "CONCURRENT_REQUESTS_PER_DOMAIN": CONCURRENT_REQUESTS_PER_DOMAIN,
+        "FEED_EXPORT_ENCODING": "utf-8",
     }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._counter = 0
 
-    def parse(self, response) -> Iterator:
-        for url in extract_book_links(response):
+    def parse(self, response) -> Iterator[dict]:
+        book_links = extract_book_links(response)
+        if not book_links:
+            self.logger.warning("No book links found on %s — check CSS selectors", response.url)
+        for url in book_links:
             yield response.follow(url, callback=self.parse_detail)
 
         nxt = next_page_url(response)
         if nxt:
             yield response.follow(nxt, callback=self.parse)
 
-    def parse_detail(self, response) -> Iterator:
+    def parse_detail(self, response) -> Iterator[dict]:
         self._counter += 1
         raw = build_raw_record(response)
         yield normalize_listing_record(raw, self._counter)

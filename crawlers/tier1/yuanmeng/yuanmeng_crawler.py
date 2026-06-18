@@ -66,35 +66,37 @@ async def run(output: Path) -> None:
 
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=True)
-        page = await browser.new_page(user_agent=USER_AGENT)
-        await page.goto(BASE_URL, wait_until="networkidle")
+        try:
+            page = await browser.new_page(user_agent=USER_AGENT)
+            await page.goto(BASE_URL, wait_until="networkidle")
 
-        title = await page.title()
-        all_anchors = await page.eval_on_selector_all(
-            "a[href]",
-            """
-            (anchors) => anchors.map((a) => ({
-                href: a.getAttribute('href') || '',
-                text: (a.textContent || '').trim()
-            }))
-            """,
-        )
-        all_nodes = await page.eval_on_selector_all(
-            "a[href], button",
-            """
-            (nodes) => nodes.map((n) => ({
-                text: (n.textContent || '').trim(),
-                href: n.getAttribute ? (n.getAttribute('href') || '') : ''
-            }))
-            """,
-        )
+            title = await page.title()
+            all_anchors = await page.eval_on_selector_all(
+                "a[href]",
+                """
+                (anchors) => anchors.map((a) => ({
+                    href: a.getAttribute('href') || '',
+                    text: (a.textContent || '').trim()
+                }))
+                """,
+            )
+            all_nodes = await page.eval_on_selector_all(
+                "a[href], button",
+                """
+                (nodes) => nodes.map((n) => ({
+                    text: (n.textContent || '').trim(),
+                    href: n.getAttribute ? (n.getAttribute('href') || '') : ''
+                }))
+                """,
+            )
 
-        book_links = filter_book_links(all_anchors)
-        pagination = filter_pagination(all_nodes)
-        payload = build_dry_run_payload(BASE_URL, title, book_links, pagination)
+            book_links = filter_book_links(all_anchors)
+            pagination = filter_pagination(all_nodes)
+            payload = build_dry_run_payload(BASE_URL, title, book_links, pagination)
 
-        output.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-        await browser.close()
+            output.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        finally:
+            await browser.close()
 
 
 def parse_args() -> argparse.Namespace:
