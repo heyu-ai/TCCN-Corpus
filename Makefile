@@ -54,12 +54,12 @@ phase3-check: schema-check
 clean-data: check-python
 	$(PYTHON) scripts/clean.py
 
-# Phase 4: 標籤化 data/cleaned/*.jsonl → data/labeled/
-label-data: check-python
+# Phase 4: 標籤化 data/cleaned/*.jsonl → data/labeled/（依賴 clean-data，確保序列執行）
+label-data: check-python clean-data
 	$(PYTHON) scripts/label.py
 
 # Phase 4: 清洗 + 標籤化 + Schema 驗證
-phase4-check: clean-data label-data
+phase4-check: label-data
 	@set -- data/labeled/*.jsonl; \
 	if [ ! -e "$$1" ]; then \
 		echo "[SKIP] data/labeled/*.jsonl 不存在，先執行 make label-data。"; \

@@ -1,9 +1,16 @@
+import json
+from pathlib import Path
+
+import pytest
+
 from scripts.label import (
+    LABELED_DIR,
     analyze_phonics,
     detect_action_cues,
     detect_themes,
     infer_age_range,
     infer_developmental_milestones,
+    process_file,
 )
 
 
@@ -157,3 +164,76 @@ def test_infer_age_range_older():
 
 def test_infer_age_range_very_long():
     assert infer_age_range(2000) == {"min": 6, "max": 12}
+
+
+def test_infer_age_range_just_above_first_threshold():
+    assert infer_age_range(151) == {"min": 2, "max": 4}
+
+
+def test_infer_age_range_just_above_second_threshold():
+    assert infer_age_range(401) == {"min": 4, "max": 6}
+
+
+def test_infer_age_range_just_above_third_threshold():
+    assert infer_age_range(801) == {"min": 5, "max": 8}
+
+
+def test_infer_age_range_just_above_fourth_threshold():
+    assert infer_age_range(1501) == {"min": 6, "max": 12}
+
+
+# --- process_file integration ---
+
+@pytest.fixture()
+def cleaned_dir(tmp_path, monkeypatch):
+    src_dir = tmp_path / "cleaned"
+    src_dir.mkdir()
+    dst_dir = tmp_path / "labeled"
+    monkeypatch.setattr("scripts.label.LABELED_DIR", dst_dir)
+    return src_dir, dst_dir
+
+
+def test_label_process_file_roundtrip(cleaned_dir):
+    src_dir, dst_dir = cleaned_dir
+    src = src_dir / "test.jsonl"
+    record = {
+        "title": "小星星", "body": "一閃一閃亮晶晶",
+        "content_type": "nursery_rhyme", "word_count": 8,
+        "age_range": {"min": 0, "max": 3},
+    }
+    src.write_text(json.dumps(record, ensure_ascii=False) + "\n", encoding="utf-8")
+    process_file(src)
+    lines = (dst_dir / "test.jsonl").read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 1
+    out = json.loads(lines[0])
+    assert "labeled_at" in out
+    assert "developmental_milestone" in out
+    assert "language_0_1" in out["developmental_milestone"]
+
+
+def test_label_process_file_themes_not_overwritten(cleaned_dir):
+    src_dir, dst_dir = cleaned_dir
+    src = src_dir / "test.jsonl"
+    record = {
+        "title": "T", "body": "B", "content_type": "picture_book",
+        "word_count": 2, "age_range": {"min": 0, "max": 3},
+        "themes": ["custom_theme"],
+    }
+    src.write_text(json.dumps(record, ensure_ascii=False) + "\n", encoding="utf-8")
+    process_file(src)
+    out = json.loads((dst_dir / "test.jsonl").read_text(encoding="utf-8"))
+    assert out["themes"] == ["custom_theme"]
+
+
+def test_label_process_file_skips_blank_lines(cleaned_dir):
+    src_dir, dst_dir = cleaned_dir
+    src = src_dir / "test.jsonl"
+    r1 = {"title":"A","body":"x","content_type":"picture_book","word_count":1,"age_range":{"min":0,"max":3}}
+    r2 = {"title":"B","body":"y","content_type":"picture_book","word_count":1,"age_range":{"min":0,"max":3}}
+    src.write_text(
+        json.dumps(r1, ensure_ascii=False) + "\n\n" + json.dumps(r2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    process_file(src)
+    lines = (dst_dir / "test.jsonl").read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 2

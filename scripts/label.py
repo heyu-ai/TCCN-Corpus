@@ -18,7 +18,6 @@ from pathlib import Path
 
 CLEANED_DIR = Path("data/cleaned")
 LABELED_DIR = Path("data/labeled")
-LABELED_DIR.mkdir(parents=True, exist_ok=True)
 
 _MILESTONE_BANDS = [
     (0, 1, "language_0_1"),
@@ -30,17 +29,17 @@ _MILESTONE_BANDS = [
 ]
 
 _ACTION_CUES = [
-    (r"拍[拍手]|拍手", "拍手"),
+    (r"拍[拍手]", "拍手"),
     (r"跺腳|踏腳|跺步", "跺腳"),
     (r"轉圈|旋轉|打轉", "轉圈"),
-    (r"搖[擺頭]|搖頭|搖擺", "搖擺"),
-    (r"跳[起躍舞]|跳舞", "跳躍"),
+    (r"搖[擺頭]", "搖擺"),
+    (r"跳[起躍舞]", "跳躍"),
     (r"點頭", "點頭"),
-    (r"揮手|揮揮手", "揮手"),
+    (r"揮手", "揮手"),
     (r"踏步|走走", "踏步"),
 ]
 
-_THEME_KEYWORDS: dict = {
+_THEME_KEYWORDS: dict[str, list[str]] = {
     "動物": ["動物", "小狗", "小貓", "兔子", "鳥", "魚", "蝴蝶", "小雞", "牛", "豬", "羊", "熊", "獅子", "老虎", "大象", "猴子", "青蛙"],
     "自然": ["花", "草", "樹", "山", "海", "河", "天空", "雲", "太陽", "月亮", "星星", "雨", "風", "雪"],
     "家庭": ["爸爸", "媽媽", "爺爺", "奶奶", "阿公", "阿嬤", "弟弟", "妹妹", "哥哥", "姊姊"],
@@ -49,6 +48,8 @@ _THEME_KEYWORDS: dict = {
     "情緒": ["快樂", "開心", "傷心", "生氣", "難過", "興奮"],
 }
 
+# 字數 → 適讀年齡粗估規則（閾值需依實際語料校正，需人工複審）
+# word_count > 1500 falls through to infer_age_range fallback {"min": 6, "max": 12}
 AGE_RULES = [
     (150, {"min": 0, "max": 3}),
     (400, {"min": 2, "max": 4}),
@@ -72,7 +73,7 @@ def detect_action_cues(body: str, content_type: str) -> list:
     if content_type != "nursery_rhyme":
         return []
     cues: list = []
-    seen: set = set()
+    seen: set = set()  # guard against future duplicate cue_names in _ACTION_CUES
     for pattern, cue_name in _ACTION_CUES:
         if cue_name not in seen and re.search(pattern, body):
             cues.append(cue_name)
@@ -110,10 +111,14 @@ def infer_age_range(word_count: int) -> dict:
 
 
 def process_file(src: Path) -> None:
+    LABELED_DIR.mkdir(parents=True, exist_ok=True)
     dst = LABELED_DIR / src.name
+    dst_tmp = dst.with_suffix(".tmp")
     now = datetime.now(timezone.utc).isoformat()
-    with src.open(encoding="utf-8") as fin, dst.open("w", encoding="utf-8") as fout:
+    with src.open(encoding="utf-8") as fin, dst_tmp.open("w", encoding="utf-8") as fout:
         for line in fin:
+            if not line.strip():
+                continue
             entry = json.loads(line)
             if not entry.get("age_range"):
                 entry["age_range"] = infer_age_range(entry.get("word_count", 0))
@@ -124,9 +129,11 @@ def process_file(src: Path) -> None:
             entry["developmental_milestone"] = infer_developmental_milestones(age_range)
             entry["action_cues"] = detect_action_cues(body, content_type)
             entry["phonics"] = analyze_phonics(body, content_type)
-            entry["themes"] = detect_themes(body, title)
+            if not entry.get("themes"):
+                entry["themes"] = detect_themes(body, title)
             entry["labeled_at"] = now
             fout.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    dst_tmp.rename(dst)
     print(f"labeled: {src.name} -> {dst}")
 
 

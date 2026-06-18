@@ -2,10 +2,10 @@
 清洗 pipeline：讀取 data/raw/*.jsonl，輸出至 data/cleaned/
 
 處理步驟：
-1. HTML entity decode (&amp; → &)
+1. HTML entity decode (&amp; → &)，NBSP（U+00A0）正規化為一般空格
 2. 全形 ASCII → 半形（！→! 等）
-3. 移除 C0 控制字元
-4. 連續空白壓縮
+3. 移除 C0 控制字元（保留 TAB/LF/CR）及 DEL（U+007F）
+4. 連續空白（3 個以上）壓縮為 \\n\\n
 5. 補上 cleaned_at 時間戳
 """
 import html
@@ -16,7 +16,6 @@ from pathlib import Path
 
 RAW_DIR = Path("data/raw")
 CLEANED_DIR = Path("data/cleaned")
-CLEANED_DIR.mkdir(parents=True, exist_ok=True)
 
 # Full-width ASCII U+FF01..U+FF5E → half-width U+0021..U+007E
 _FULLWIDTH_TABLE = str.maketrans(
@@ -32,8 +31,10 @@ def normalize_fullwidth(text: str) -> str:
 
 
 def clean_body(text: str) -> str:
-    """Decode HTML entities, normalize full-width, strip control chars, collapse whitespace."""
+    """Decode HTML entities (NBSP normalized to space), normalize full-width, strip C0/DEL
+    control chars, collapse 3+ consecutive whitespace to double-newline."""
     text = html.unescape(text)
+    text = text.replace("\xa0", " ")  # normalize NBSP before whitespace collapse
     text = normalize_fullwidth(text)
     text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)
     text = re.sub(r"\s{3,}", "\n\n", text)
@@ -41,15 +42,20 @@ def clean_body(text: str) -> str:
 
 
 def process_file(src: Path) -> None:
+    CLEANED_DIR.mkdir(parents=True, exist_ok=True)
     dst = CLEANED_DIR / src.name
+    dst_tmp = dst.with_suffix(".tmp")
     now = datetime.now(timezone.utc).isoformat()
-    with src.open(encoding="utf-8") as fin, dst.open("w", encoding="utf-8") as fout:
+    with src.open(encoding="utf-8") as fin, dst_tmp.open("w", encoding="utf-8") as fout:
         for line in fin:
+            if not line.strip():
+                continue
             entry = json.loads(line)
             entry["body"] = clean_body(entry.get("body", ""))
             entry["word_count"] = len(entry["body"])
             entry["cleaned_at"] = now
             fout.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    dst_tmp.rename(dst)
     print(f"cleaned: {src.name} -> {dst}")
 
 
