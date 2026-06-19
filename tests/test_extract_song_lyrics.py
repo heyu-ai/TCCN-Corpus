@@ -17,8 +17,9 @@ def test_preserves_two_char_repeat():
     assert clean_pdf_text("叮叮") == "叮叮"
 
 
-def test_collapses_three_char_repeat():
-    assert clean_pdf_text("叮叮叮") == "叮"
+def test_preserves_three_char_repeat():
+    # 3-repeat 是合法疊聲詞，不應壓縮（SATB artifact 是嚴格的 4-repeat）
+    assert clean_pdf_text("叮叮叮") == "叮叮叮"
 
 
 def test_filters_notation_symbols():
@@ -56,9 +57,10 @@ def test_whitespace_only_input():
 
 def test_full_satb_header_pattern():
     # 模擬四聲部標題：標題字元重複 4 次，credits 重複 4 次
+    # 行結構保留，兩行以 \n 分隔
     header = "叮叮叮叮 噹噹噹噹 叮叮叮叮 咚咚咚咚\n作作作作 陳陳陳陳陳陳陳陳陳陳陳陳"
     result = clean_pdf_text(header)
-    assert result == "叮噹叮咚作陳"
+    assert result == "叮噹叮咚\n作陳"
 
 
 def test_lyrics_section_after_header():
@@ -115,10 +117,8 @@ def test_extract_lyrics_from_pdf_does_not_crash():
 # --- process_file integration ---
 
 @pytest.fixture()
-def song_dir(tmp_path, monkeypatch):
-    src = tmp_path / "moc_song.jsonl"
-    monkeypatch.setattr("scripts.extract_song_lyrics.INPUT_FILE", src)
-    return src
+def song_dir(tmp_path):
+    return tmp_path / "moc_song.jsonl"
 
 
 def test_process_file_no_pdf_url(song_dir, monkeypatch):
@@ -186,6 +186,34 @@ def test_process_file_fetch_error_keeps_original(song_dir, monkeypatch):
 
     out = json.loads(song_dir.read_text(encoding="utf-8"))
     assert out["body"] == "測試曲"
+
+
+def test_process_file_empty_lyrics_keeps_original(song_dir, monkeypatch):
+    record = {
+        "id": "MOC-abc",
+        "title": "測試曲",
+        "body": "測試曲",
+        "word_count": 3,
+        "raw_metadata": {"sheet_music_url": "https://example.com/song.pdf"},
+    }
+    song_dir.write_text(json.dumps(record, ensure_ascii=False) + "\n", encoding="utf-8")
+
+    def fake_fetch(url: str) -> bytes:
+        return _make_minimal_pdf("test")
+
+    def fake_extract_empty(pdf_bytes: bytes) -> str:
+        return ""
+
+    monkeypatch.setattr("scripts.extract_song_lyrics._fetch_pdf", fake_fetch)
+    monkeypatch.setattr("scripts.extract_song_lyrics.extract_lyrics_from_pdf", fake_extract_empty)
+    monkeypatch.setattr("scripts.extract_song_lyrics._DOWNLOAD_DELAY", 0)
+
+    result = process_file(song_dir)
+
+    out = json.loads(song_dir.read_text(encoding="utf-8"))
+    assert out["body"] == "測試曲"
+    assert out["word_count"] == 3
+    assert result == 1  # empty-lyrics counts as failure
 
 
 def test_process_file_skips_blank_lines(song_dir, monkeypatch):

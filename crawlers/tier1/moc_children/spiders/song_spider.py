@@ -76,12 +76,22 @@ def next_page_url(response) -> str | None:
     return absolute if absolute != response.url else None
 
 
+def _iter_meta_items(response) -> Iterator[tuple[str, str]]:
+    """Iterate (label, value) pairs from detail-page metadata ul.
+
+    Uses sibling selector h2 ~ ul to tolerate any element between h2 and ul.
+    """
+    for li in response.css("h2 ~ ul li"):
+        label = "".join(li.css("span::text").getall()).replace("：", "").strip()
+        value = " ".join(t.strip() for t in li.xpath("text()").getall() if t.strip())
+        if label:
+            yield label, value
+
+
 def infer_language_from_meta(response) -> str | None:
     """Infer language code from detail-page 類別 metadata; returns None if absent."""
-    for li in response.css("h2 + ul li"):
-        label = "".join(li.css("span::text").getall()).replace("：", "").strip()
+    for label, value in _iter_meta_items(response):
         if label == "類別":
-            value = " ".join(t.strip() for t in li.xpath("text()").getall() if t.strip())
             for keyword, code in _LANG_MAP.items():
                 if keyword in value:
                     return code
@@ -93,11 +103,10 @@ def extract_metadata(response) -> dict:
 
     Page structure: <h2>title</h2><ul class="list-unstyled"><li><span>欄位</span><span>：</span>值</li>
     The field label is in <span> tags; value is a direct text node in <li>.
+    PDF URL 存於 raw_metadata.sheet_music_url 欄位，供 extract_song_lyrics.py 讀取。
     """
     result: dict = {}
-    for li in response.css("h2 + ul li"):
-        label = "".join(li.css("span::text").getall()).replace("：", "").strip()
-        value = " ".join(t.strip() for t in li.xpath("text()").getall() if t.strip())
+    for label, value in _iter_meta_items(response):
         for field, key in (("作曲", "composer"), ("作詞", "lyricist"), ("演唱", "singer"), ("類別", "category")):
             if label == field:
                 result[key] = value

@@ -62,8 +62,10 @@ label-data: check-python clean-data
 extract-song-lyrics: check-python
 	$(PYTHON) scripts/extract_song_lyrics.py
 
-# Phase 5a: 爬取兒歌 + 萃取歌詞（完整 Phase 5a pipeline）
-phase5-check: extract-song-lyrics phase4-check
+# Phase 5a: 萃取歌詞 + Phase 4 pipeline 驗證（需先執行 crawl-moc-song）
+phase5-check: check-python
+	$(MAKE) extract-song-lyrics
+	$(MAKE) phase4-check
 	@echo "--- Phase 5a Song lyrics extraction + pipeline check done ---"
 
 # Phase 4: 清洗 + 標籤化 + Schema 驗證

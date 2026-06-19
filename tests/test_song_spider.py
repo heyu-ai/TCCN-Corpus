@@ -43,6 +43,13 @@ def test_next_page_url_returns_none_when_absent(fake_response):
     assert next_page_url(response) is None
 
 
+def test_next_page_url_returns_none_for_self_loop(fake_response):
+    # 最後一頁的「下一頁」指向自身，應返回 None 防止無窮迴圈
+    html = '<a href="/song_list?language=1&page=3">下一頁</a>'
+    response = fake_response("https://children.moc.gov.tw/song_list?language=1&page=3", html)
+    assert next_page_url(response) is None
+
+
 def test_next_page_url_resolves_chinese_next(fake_response):
     html = '<a href="/song_list?language=1&page=2">下一頁</a>'
     response = fake_response("https://children.moc.gov.tw/song_list?language=1", html)
@@ -107,6 +114,13 @@ def test_infer_language_from_meta_indigenous(fake_response):
 def test_infer_language_returns_none_when_no_category(fake_response):
     html = "<h2>X</h2>" + _meta_ul(("作曲", "某人"))
     response = fake_response("https://children.moc.gov.tw/song/5", html)
+    assert infer_language_from_meta(response) is None
+
+
+def test_infer_language_returns_none_for_unknown_category(fake_response):
+    # 類別值不在 _LANG_MAP 中（如英語）應返回 None，讓 parse_detail 使用種子語言 fallback
+    html = "<h2>X</h2>" + _meta_ul(("類別", "英語"))
+    response = fake_response("https://children.moc.gov.tw/song/6", html)
     assert infer_language_from_meta(response) is None
 
 
