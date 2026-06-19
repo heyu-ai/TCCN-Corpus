@@ -1,4 +1,4 @@
-PYTHON ?= $(shell command -v python3 2>/dev/null || command -v /home/node/bin/python3 2>/dev/null || command -v python 2>/dev/null)
+PYTHON ?= $(shell command -v uv >/dev/null 2>&1 && echo "uv run python" || command -v python3 2>/dev/null || command -v /home/node/bin/python3 2>/dev/null || command -v python 2>/dev/null)
 
 .PHONY: test test-unit check-python ogd-check robots-check schema-check crawl-moc crawl-moc-song crawl-yuanmeng phase2-check phase3-check clean-data label-data phase4-check extract-song-lyrics phase5-check
 
