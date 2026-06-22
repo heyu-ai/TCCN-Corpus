@@ -34,11 +34,12 @@ INPUT_FILE = RAW_DIR / "moc_song.jsonl"
 _MAX_RETRIES = 3
 
 
-def clean_pdf_text(raw_text: str) -> str:
+def clean_pdf_text(raw_text: str, *, latin_ok: bool = False) -> str:
     """從樂譜 PDF 萃取出的原始文字中清出歌詞，保留行結構供 phonics 分析。
 
     - 保留純漢字 token（U+3400–U+9FFF，含 CJK Extension A），過濾音符及 ASCII
     - 將 4+ 連續相同字元壓縮為 1（SATB 標題 artifact）；2–3 次重複保留
+    - latin_ok=True：同時保留純拉丁字母 token（≥2 字元），供原住民族語羅馬拼音使用
     - 行結構以 \\n 分隔，供 label.py analyze_phonics 的 splitlines() 使用
     """
     lines = []
@@ -48,16 +49,19 @@ def clean_pdf_text(raw_text: str) -> str:
             if re.fullmatch(r"[㐀-鿿]+", token):
                 cleaned = re.sub(r"(.)\1{3,}", r"\1", token)
                 line_tokens.append(cleaned)
+            elif latin_ok and re.fullmatch(r"[A-Za-z']{2,}", token):
+                line_tokens.append(token)
         if line_tokens:
-            lines.append("".join(line_tokens))
+            sep = " " if latin_ok else ""
+            lines.append(sep.join(line_tokens))
     return "\n".join(lines)
 
 
-def extract_lyrics_from_pdf(pdf_bytes: bytes) -> str:
+def extract_lyrics_from_pdf(pdf_bytes: bytes, *, latin_ok: bool = False) -> str:
     """用 pdfplumber 從已下載的 PDF bytes 萃取全文，再呼叫 clean_pdf_text 清出歌詞。"""
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
         pages = [page.extract_text() or "" for page in pdf.pages]
-    return clean_pdf_text("\n".join(pages))
+    return clean_pdf_text("\n".join(pages), latin_ok=latin_ok)
 
 
 def _fetch_pdf(url: str) -> bytes:
@@ -121,7 +125,8 @@ def process_file(input_path: Path) -> int:
                 try:
                     print(f"  [{i + 1}/{len(records)}] {title}: {pdf_url}")
                     pdf_bytes = _fetch_pdf(pdf_url)
-                    lyrics = extract_lyrics_from_pdf(pdf_bytes)
+                    lang = (entry.get("language") or [""])[0]
+                    lyrics = extract_lyrics_from_pdf(pdf_bytes, latin_ok=(lang == "indigenous"))
                     if lyrics:
                         entry["body"] = lyrics
                         entry["word_count"] = len(lyrics)

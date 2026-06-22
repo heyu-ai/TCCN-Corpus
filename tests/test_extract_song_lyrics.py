@@ -27,6 +27,24 @@ def test_filters_notation_symbols():
     assert clean_pdf_text("& c œ œ œ ˙ ‰") == ""
 
 
+def test_latin_ok_preserves_indigenous_words():
+    # 原住民族語 PDF 為羅馬拼音，latin_ok=True 時保留純拉丁 token
+    result = clean_pdf_text("Duduli ko wawa 叮噹", latin_ok=True)
+    assert "Duduli" in result
+    assert "wawa" in result
+    assert "叮噹" in result
+
+
+def test_latin_ok_filters_single_chars_and_symbols():
+    # 單字母（PDF 雜訊）和音符不應被保留
+    assert clean_pdf_text("c f p œ ˙ AB Wawa", latin_ok=True) == "AB Wawa"
+
+
+def test_latin_ok_false_filters_latin_by_default():
+    # 預設行為：不開 latin_ok 時拉丁字母仍被過濾
+    assert clean_pdf_text("Duduli ko wawa") == ""
+
+
 def test_filters_ascii_digits():
     # 小節號碼（純數字）應被過濾
     assert clean_pdf_text("5\n叮叮\n9") == "叮叮"
@@ -151,7 +169,7 @@ def test_process_file_updates_body_and_word_count(song_dir, monkeypatch):
     def fake_fetch(url: str) -> bytes:
         return _make_minimal_pdf("test")
 
-    def fake_extract(pdf_bytes: bytes) -> str:
+    def fake_extract(pdf_bytes: bytes, *, latin_ok: bool = False) -> str:
         return "叮噹叮咚窗外風鈴響"
 
     monkeypatch.setattr("scripts.extract_song_lyrics._fetch_pdf", fake_fetch)
@@ -201,7 +219,7 @@ def test_process_file_empty_lyrics_keeps_original(song_dir, monkeypatch):
     def fake_fetch(url: str) -> bytes:
         return _make_minimal_pdf("test")
 
-    def fake_extract_empty(pdf_bytes: bytes) -> str:
+    def fake_extract_empty(pdf_bytes: bytes, *, latin_ok: bool = False) -> str:
         return ""
 
     monkeypatch.setattr("scripts.extract_song_lyrics._fetch_pdf", fake_fetch)
